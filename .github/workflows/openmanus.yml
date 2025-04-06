@@ -66,6 +66,3 @@ jobs:
           Write-Output "Session is alive - $(Get-Date)"
           Start-Sleep -Seconds 300
         }
-        
-    # Removing the problematic self-triggering step that was causing credential errors
-    # If you need to re-add this later, make sure to set up a proper PAT with workflow permissions
