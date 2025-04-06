@@ -1,4 +1,4 @@
-name: openmanusmain
+name: main
 on:
   workflow_dispatch:
 jobs:
@@ -67,22 +67,5 @@ jobs:
           Start-Sleep -Seconds 300
         }
         
-    # Step 9: Trigger the workflow again (only if needed)
-    - name: Trigger New Workflow Run
-      if: always()
-      env:
-        REPO_PAT: ${{ secrets.REPO_PAT }}
-      run: |
-        $payload = @"
-        {
-          "ref": "main"
-        }
-        "@
-        Invoke-RestMethod `
-          -Method POST `
-          -Uri "https://api.github.com/repos/${{ github.repository }}/actions/workflows/rdp.yml/dispatches" `
-          -Headers @{
-            Authorization = "token $env:REPO_PAT"
-            Accept = "application/vnd.github.v3+json"
-          } `
-          -Body $payload
+    # Removing the problematic self-triggering step that was causing credential errors
+    # If you need to re-add this later, make sure to set up a proper PAT with workflow permissions
