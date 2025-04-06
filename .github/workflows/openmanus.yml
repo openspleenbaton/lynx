@@ -1,0 +1,85 @@
+name: main
+on:
+  workflow_dispatch:
+jobs:
+  setup-rdp-tunnel:
+    runs-on: windows-latest
+    steps:
+    # Step 1: Check out the repository
+    - name: Check out the repository
+      uses: actions/checkout@v2
+      
+    # Step 2: Install Git (already installed on GitHub runners, but included for completeness)
+    - name: Ensure Git is installed
+      run: |
+        git --version
+        
+    # Step 3: Install Miniconda
+    - name: Install Miniconda
+      run: |
+        Invoke-WebRequest -Uri "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe" -OutFile "miniconda.exe"
+        Start-Process -FilePath "miniconda.exe" -Args "/S /AddToPath=1 /RegisterPython=1" -Wait
+        refreshenv
+        conda --version
+        
+    # Step 4: Setup Python environment for OpenManus
+    - name: Setup Python Environment
+      run: |
+        conda create -n open_manus python=3.12 -y
+        # Need to activate conda in the current PowerShell session
+        $env:PATH = "$env:USERPROFILE\miniconda3\Scripts;$env:USERPROFILE\miniconda3\condabin;$env:PATH"
+        conda init powershell
+        conda activate open_manus
+        git clone https://github.com/mannaandpoem/OpenManus.git
+        cd OpenManus
+        pip install -r requirements.txt
+        
+    # Step 5: Download and Install Playit
+    - name: Download and Install Playit
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-windows-x86_64-signed.exe" -OutFile "$env:USERPROFILE\playit.exe"
+        
+    # Step 6: Enable Remote Desktop features and configure user
+    - name: Enable Remote Desktop
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "p@ssw0rd!" -Force)
+        
+    # Step 7: Start Playit for RDP tunnel (modified to not wait indefinitely)
+    - name: Start Playit and Set Up RDP Tunnel
+      env:
+        PLAYIT_AUTH_KEY: ${{ secrets.PL }}
+      run: |
+        Start-Process -FilePath "$env:USERPROFILE\playit.exe" -ArgumentList "--secret $env:PLAYIT_AUTH_KEY" -NoNewWindow
+        # Wait briefly to let the process start
+        Start-Sleep -Seconds 30
+        
+    # Step 8: Keep the GitHub Action Runner Alive
+    - name: Keep the GitHub Action Runner Alive
+      run: |
+        while ($true) {
+          Write-Output "Session is alive - $(Get-Date)"
+          Start-Sleep -Seconds 300
+        }
+        
+    # Step 9: Trigger the workflow again (only if needed)
+    - name: Trigger New Workflow Run
+      if: always()
+      env:
+        REPO_PAT: ${{ secrets.REPO_PAT }}
+      run: |
+        $payload = @"
+        {
+          "ref": "main"
+        }
+        "@
+        Invoke-RestMethod `
+          -Method POST `
+          -Uri "https://api.github.com/repos/${{ github.repository }}/actions/workflows/rdp.yml/dispatches" `
+          -Headers @{
+            Authorization = "token $env:REPO_PAT"
+            Accept = "application/vnd.github.v3+json"
+          } `
+          -Body $payload
