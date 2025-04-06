@@ -1,4 +1,4 @@
-name: openmanus
+name: openmanusmain
 on:
   workflow_dispatch:
 jobs:
@@ -19,16 +19,19 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe" -OutFile "miniconda.exe"
         Start-Process -FilePath "miniconda.exe" -Args "/S /AddToPath=1 /RegisterPython=1" -Wait
-        refreshenv
+        # Update PATH to include conda immediately for this step
+        $env:PATH = "$env:USERPROFILE\miniconda3;$env:USERPROFILE\miniconda3\Scripts;$env:USERPROFILE\miniconda3\Library\bin;$env:PATH"
+        # Verify conda is available
         conda --version
         
     # Step 4: Setup Python environment for OpenManus
     - name: Setup Python Environment
       run: |
+        # Add conda to PATH for this step
+        $env:PATH = "$env:USERPROFILE\miniconda3;$env:USERPROFILE\miniconda3\Scripts;$env:USERPROFILE\miniconda3\Library\bin;$env:PATH"
         conda create -n open_manus python=3.12 -y
-        # Need to activate conda in the current PowerShell session
-        $env:PATH = "$env:USERPROFILE\miniconda3\Scripts;$env:USERPROFILE\miniconda3\condabin;$env:PATH"
-        conda init powershell
+        # Activate conda environment
+        & "$env:USERPROFILE\miniconda3\Scripts\activate.ps1"
         conda activate open_manus
         git clone https://github.com/mannaandpoem/OpenManus.git
         cd OpenManus
